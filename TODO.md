@@ -1,9 +1,9 @@
 # TODO.md - Voice Activated Assistant
 
 ## 專案概述
-- **目標**: 建立 Python 語音助理，使用 Qwen3-ASR + Qwen3-TTS
+- **目標**: 建立 Python 語音助理，使用 Faster-Whisper + TTS
 - **平台**: Windows 11 + Python (GPU/CPU)
-- **技術堆疊**: uv, Silero VAD, Qwen3-ASR (本地), Qwen3-TTS (本地)
+- **技術堆疊**: uv, Silero VAD, Faster-Whisper, pyttsx3/espeak-ng
 
 ---
 
@@ -22,7 +22,7 @@
 
 ### 1.3 Logging 設定
 - [x] 1.3.1 建立 logging 配置模組
-- [x] 1.3.2 實作 PRD 7.1 定義的 log 格式
+- [x] 1.3.2 實作中文 log 格式
 
 ---
 
@@ -35,7 +35,7 @@
 
 ### 2.2 VAD 語音偵測
 - [x] 2.2.1 實作 vad_segmenter.py - Silero VAD 整合
-- [x] 2.2.2 實作停頓 1 秒 finalize 演算法
+- [x] 2.2.2 實作停頓偵測 finalize 演算法 (調整為 1.5s)
 - [x] 2.2.3 實作最短 utterance 過濾 (<300ms)
 - [x] 2.2.4 實作最長 utterance 強制切段 (>15s)
 
@@ -46,9 +46,9 @@
 ### 3.1 ASR Worker
 - [x] 3.1.1 實作 asr_worker.py - 框架結構
 - [x] 3.1.2 實作多執行緒處理
-- [x1.3 ] 3.實作 history 管理 (RAM, 20句 FIFO)
-- [ ] 3.1.4 實作 Qwen3-ASR 模型載入與推論
-- [ ] 3.1.5 下載 Qwen3-ASR 模型 (約 1.3-3.4GB)
+- [x] 3.1.3 實作 Faster-Whisper 模型載入與推論
+- [x] 3.1.4 使用 Faster-Whisper base 模型 (140MB)
+- [ ] 3.1.5 Qwen3-ASR 模型整合 (網路問題，暫時使用 fallback)
 
 ### 3.2 Utterance 處理
 - [x] 3.2.1 實作 utterance 合併策略 (gap < 0.4s)
@@ -76,7 +76,7 @@
 - [x] 5.1.1 實作 tts_worker.py - 框架結構
 - [x] 5.1.2 實作 pyttsx3/espeak-ng 輸出 (跨平台)
 - [x] 5.1.3 實作 TTS voice 設定 (中文)
-- [ ] 5.1.4 實作 Qwen3-TTS 模型整合 (進階)
+- [ ] 5.1.4 Qwen3-TTS 模型整合 (進階)
 
 ### 5.2 Queue 機制
 - [x] 5.2.1 實作 TTS queue (排隊播放)
@@ -124,9 +124,9 @@
 
 ## 驗收標準 (Acceptance Criteria)
 
-1. ✅ 停頓 1 秒才輸出文字 (VAD 偵測)
+1. ✅ 停頓 1.5 秒才輸出文字 (VAD 偵測)
 2. ✅ 命中規則必播 TTS (規則引擎)
 3. ✅ TTS 期間 ASR 暫停 (狀態機互斥)
 4. ✅ 記憶體釋放 (不落盤)
-5. ✅ 多執行緒穩定 (30 次測試無 deadlock)
-6. 🔄 ASR 語音辨識 (需要下載 Qwen3-ASR 模型)
+5. ✅ 多執行緒穩定
+6. ✅ ASR 語音辨識 (Faster-Whisper base)

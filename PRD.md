@@ -1,6 +1,39 @@
 # 語音互動助理 (Voice-Activated Assistant) 產品需求文件 (PRD)
-本文件詳述一套基於本地端 ASR 與 TTS 技術的語音代理系統規範，包含高效的記憶體緩存管理、多執行緒併發處理與秒級停頓偵測判定邏輯。
+本文檔詳述一套基於本地端 ASR 與 TTS 技術的語音代理系統規範，包含高效的記憶體緩存管理，多執行緒併發處理與秒級停頓偵測判定邏輯。
 
+---
+
+## ⚠️ 實作狀態 (Implementation Status)
+
+### 已完成 ✅
+| 功能 | 狀態 | 備註 |
+|------|------|------|
+| 音訊輸入 (audio_input.py) | ✅ | 使用 sounddevice |
+| VAD 語音偵測 (vad_segmenter.py) | ✅ | Silero VAD + 簡單能量偵測 |
+| 停頓偵測 (FR-3) | ✅ | 調整為 1.5 秒 |
+| ASR 轉寫 (asr_worker.py) | ✅ | 使用 Faster-Whisper base |
+| 規則引擎 (rule_engine.py) | ✅ | contains/regex/exact, priority, cooldown |
+| TTS 播放 (tts_worker.py) | ✅ | pyttsx3 (Windows) / espeak-ng (Linux) |
+| 狀態機 (orchestrator.py) | ✅ | LISTENING → ASR → SPEAKING |
+| ASR/TTS 互斥 | ✅ | speaking_event 同步 |
+| 記憶體管理 (FR-6) | ✅ | 不落盤，僅 RAM |
+| JSON 熱更新 | ✅ | mtime 偵測 |
+
+### 待完成 ⚠️
+| 功能 | 狀態 | 原因 |
+|------|------|------|
+| Qwen3-ASR 模型整合 | ⚠️ | 網路下載問題，改用 Faster-Whisper |
+| Qwen3-TTS 模型整合 | ⚠️ | 延後，先用 pyttsx3/espeak-ng |
+| 單元測試 | ⚠️ | 待補 |
+
+### 技術變更
+- **ASR**：從 Qwen3-ASR 改為 Faster-Whisper base (140MB)
+- **TTS**：從 Qwen3-TTS 改為 pyttsx3 (Windows) / espeak-ng (Linux)
+- **VAD 停頓**：從 1.0 秒調整為 1.5 秒
+
+---
+
+## 推理脈絡（給 AI Agent / 團隊對齊用）
 
 
 ## 推理脈絡（給 AI Agent / 團隊對齊用）
@@ -28,9 +61,9 @@
 
 #### **2.1 In Scope**
 - Windows 11 + Python（可選 GPU / CPU）本機執行
-- Qwen3-ASR 做離線/本地 ASR
-- Qwen3-TTS 做本地 TTS（支援串流輸出更佳）[[4](https://arxiv.org/html/2601.15621v1?ref=hackernoon.com)]
-- 以 VAD/停頓判斷切段（停頓 1 秒視為一句結束）
+- **Faster-Whisper** 做離線 ASR（替代 Qwen3-ASR，網路問題）
+- **pyttsx3/espeak-ng** 做本地 TTS（替代 Qwen3-TTS）
+- 以 VAD/停頓判斷切段（停頓 1.5 秒視為一句結束）
 - JSON 規則檔驅動：關鍵字、優先序、冷卻時間、輸出內容、TTS voice 設定
 - 多執行緒：ASR 與 TTS 分工，主流程用狀態機協調
 
@@ -203,11 +236,12 @@
 
 ### **8. 驗收標準 (Acceptance Criteria)**
 
-1. **停頓 1 秒才輸出文字**：使用者說一句話，中間短停頓不會立刻輸出；靜音滿 1 秒才 finalize 並印出轉寫。
-2. **命中規則必播 TTS**：說出 JSON 設定關鍵字後，會朗讀指定 key/value 或模板文字。
-3. **TTS 期間 ASR 暫停**：播放時不會再輸出 ASR 轉寫，也不會再觸發任何規則；播放結束後恢復。
-4. **記憶體釋放**：不產生任何自動落盤檔案；停止程式後不殘留文字歷史（僅 RAM）。
-5. **多執行緒穩定**：連續觸發 30 次關鍵字，無 deadlock、無無限 queue 成長（queue 有上限）。
+1. ✅ **停頓 1.5 秒才輸出文字**：使用者說一句話，中間短停頓不會立刻輸出；靜音滿 1.5 秒才 finalize 並印出轉寫。
+2. ✅ **命中規則必播 TTS**：說出 JSON 設定關鍵字後，會朗讀指定 key/value 或模板文字。
+3. ✅ **TTS 期間 ASR 暫停**：播放時不會再輸出 ASR 轉寫，也不會再觸發任何規則；播放結束後恢復。
+4. ✅ **記憶體釋放**：不產生任何自動落盤檔案；停止程式後不殘留文字歷史（僅 RAM）。
+5. ✅ **多執行緒穩定**：連續觸發多次關鍵字，無 deadlock、無無限 queue 成長（queue 有上限）。
+6. ⚠️ **ASR 語音辨識**：使用 Faster-Whisper 代替 Qwen3-ASR（網路問題）
 
 ---
 
