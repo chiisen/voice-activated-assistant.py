@@ -5,7 +5,7 @@ audio:
 
 vad:
   silence_threshold: 0.5
-  silence_duration: 1.0
+  silence_duration: 1.5
   min_utterance_ms: 300
   max_utterance_s: 15
 

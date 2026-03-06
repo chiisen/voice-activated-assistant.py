@@ -2,7 +2,7 @@
   "rules": [
     {
       "id": "greeting",
-      "keywords": ["你好", "hello", "hi", "嗨"],
+      "keywords": ["你好", "hello", "hi", "嗨", "好", "哈囉"],
       "match_mode": "contains",
       "priority": 1,
       "cooldown_s": 2.0,

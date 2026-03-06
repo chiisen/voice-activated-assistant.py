@@ -14,5 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 優化 `PRD.md` 標題與前言描述，使其符合專業文件規範。
 - 重新編寫 `README.md`，包含豐富的專案簡介與 Mermaid 核心流程圖。
 - 在 `README.md` 新增「開發進度」區塊並連結至 `TODO.md`。
+- 在 `README.md` 新增 WSL 環境限制說明，建議使用 Windows 原生環境執行。
+
 
 

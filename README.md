@@ -4,6 +4,12 @@
 
 ---
 
+> [!WARNING]
+> **WSL 環境限制**：由於 WSL 預設無法存取 Windows 端的麥克風硬體，請務必在 **Windows 原生環境**（PowerShell/CMD）中執行本程式。如需在 WSL 中使用，請參考「常見問題」章節。
+
+---
+
+
 ## ✨ 核心特性
 
 - **🚀 極速本地推論**：使用 Qwen3-ASR 與 Qwen3-TTS，支援串流輸出，具備極低首包延遲。
@@ -58,14 +64,147 @@ flowchart TD
 - [📝 專案待辦事項 (TODO.md)](TODO.md)：包含各階段 (Phase 1-8) 的詳細實作清單與驗收標準。
 - [📄 產品需求文件 (PRD.md)](PRD.md)：系統架構與演算法細節的權威定義。
 
+## 🚀 快速開始
+
+### 1. 安裝依賴
+
+```powershell
+# 使用 uv（推薦）
+uv sync
+
+# 或使用 pip
+pip install -r requirements.txt
+```
+
+### 2. 下載 ASR 模型（首次執行自動下載）
+
+模型會在首次執行時自動下載（需要網路連線）：
+
+```powershell
+# 執行後會自動下載 Qwen3-ASR 模型（約 3-4GB）
+python src/main.py --rules config/rules.json
+```
+
+若要手動預先下載：
+```powershell
+# 使用 transformers 庫下載模型
+python -c "from transformers import AutoModelForSpeech2Seq; m = AutoModelForSpeech2Seq.from_pretrained('Qwen/Qwen3-ASR-0.6B', torch_dtype='float32', device_map='cpu')"
+```
+
+或直接從 Hugging Face 下載：
+- [Qwen3-ASR-0.6B](https://huggingface.co/Qwen/Qwen3-ASR-0.6B)（較小，推薦）
+- [Qwen3-ASR-1.7B](https://huggingface.co/Qwen/Qwen3-ASR-1.7B)（較大，但準確率更高）
+
+### 2. 列出音訊設備
+
+```powershell
+python src/main.py --list-devices
+```
+
+### 3. 執行語音助理
+
+```powershell
+# 基本執行
+python src/main.py --rules config/rules.json
+
+# 指定音訊設備
+python src/main.py --rules config/rules.json --device 0
+
+# Mock 測試模式（不需要麥克風）
+python src/main.py --mock-mode --test "天氣"
+```
+
 ---
 
-## �🚀 快速開始 (待補)
+## 🔧 常見問題
 
+### Q1: WSL 環境無法使用麥克風
 
-目前專案處於開發階段，詳細安裝步驟將在主程式完備後提供。
+**問題**：在 WSL 中執行時顯示 `PortAudioError: Error querying device -1`
+
+**原因**：WSL 預設無法直接存取 Windows 主機的麥克風
+
+**解決方案**：
+
+1. **推薦**：在 Windows 原生環境執行（PowerShell/CMD）
+   ```powershell
+   cd D:\github\chiisen\voice-activated-assistant.py
+   python src\main.py --rules config\rules.json
+   ```
+
+2. **或設定 WSL 音訊**（進階）：
+   ```bash
+   # 在 WSL 中安裝
+   sudo apt install libasound2-plugins pulseaudio
+   ```
+
+### Q2: `ModuleNotFoundError: No module named 'numpy'`
+
+**解決方案**：
+```powershell
+# 安裝依賴
+pip install -r requirements.txt
+# 或
+uv sync
+```
+
+### Q3: `uv sync` 錯誤 - 存取被拒
+
+**問題**：Windows 檔案權限錯誤
+
+**解決方案**：
+```powershell
+# 刪除舊的虛擬環境
+Remove-Item -Recurse -Force .venv
+
+# 重新安裝
+uv sync
+```
+
+### Q4: TTS 無法發聲
+
+**檢查**：
+1. 確認系統音量已開啟
+2. Windows 可用 `pyttsx3`（內建 Edge TTS）
+3. Linux 可用 `espeak-ng`（已安裝）
 
 ---
 
-<!-- [😸WSL] -->
+## 📖 使用說明
+
+### 指令列選項
+
+| 選項 | 說明 |
+|------|------|
+| `--rules <path>` | 規則檔路徑（預設：config/rules.json） |
+| `--list-devices` | 列出可用音訊設備 |
+| `--device <n>` | 指定音訊設備編號 |
+| `--mock-mode` | Mock 模式，不需要麥克風 |
+| `--test <文字>` | 測試特定關鍵字（自動啟用 mock 模式） |
+| `--debug` | 啟用偵錯模式 |
+
+### 規則檔格式
+
+編輯 `config/rules.json` 來新增/修改關鍵字回應：
+
+```json
+{
+  "rules": [
+    {
+      "id": "greeting",
+      "keywords": ["你好", "hello"],
+      "match_mode": "contains",
+      "priority": 1,
+      "cooldown_s": 2.0,
+      "response": {
+        "type": "speak_text",
+        "text_template": "你好，我是語音助理"
+      }
+    }
+  ]
+}
+```
+
+---
+
 <!-- [😸SAM] -->

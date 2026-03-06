@@ -1,7 +1,7 @@
 [project]
 name = "voice-activated-assistant-py"
 version = "0.1.0"
-description = "Voice-activated assistant using Qwen3-ASR and Qwen3-TTS"
+description = "Voice-activated assistant using Faster-Whisper and TTS"
 readme = "README.md"
 requires-python = ">=3.11.9"
 dependencies = [
@@ -13,6 +13,10 @@ dependencies = [
     "pydantic>=2.0.0",
     "pyyaml>=6.0.0",
     "pyttsx3>=2.90",
+    "transformers>=4.40.0",
+    "accelerate>=0.30.0",
+    "faster-whisper>=0.0.0",
+    "soundfile>=0.0.0",
 ]
 
 [project.optional-dependencies]
