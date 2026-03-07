@@ -86,9 +86,9 @@ class OrchestratorConfig:
 
     sample_rate: int = 16000
     frame_duration_ms: int = 30
-    silence_threshold: float = 0.5
-    silence_duration: float = 1.0
-    min_utterance_ms: int = 300
+    silence_threshold: float = 0.3  # 降至 0.3 使其更靈敏 (預設 0.5 太高)
+    silence_duration: float = 0.8   # 降至 0.8s 縮短說完後的反應時間 (預設 1.0s)
+    min_utterance_ms: int = 200     # 降至 200ms 以避免忽略簡短的單詞 (預設 300ms)
     max_utterance_s: int = 15
     resume_grace_s: float = 0.2
     rules_path: str = "config/rules.json"

@@ -107,6 +107,28 @@ def parse_args():
         help="TTS speaker voice"
     )
     
+    # -------------------------------------------------------------------------
+    # VAD 靈敏度相關參數 (新增)
+    # -------------------------------------------------------------------------
+    parser.add_argument(
+        "--silence-threshold",
+        type=float,
+        default=0.3,
+        help="VAD speech probability threshold (0.0-1.0). Lower is more sensitive."
+    )
+    parser.add_argument(
+        "--silence-duration",
+        type=float,
+        default=0.8,
+        help="Duration of silence to wait before finalizing utterance (seconds)."
+    )
+    parser.add_argument(
+        "--min-utterance",
+        type=int,
+        default=200,
+        help="Minimum utterance duration in milliseconds to be considered speech."
+    )
+    
     return parser.parse_args()
 
 
@@ -164,6 +186,9 @@ def main():
         mock_mode=args.mock_mode or args.test is not None,
         device=args.device_type,
         tts_voice=args.voice,
+        silence_threshold=args.silence_threshold,
+        silence_duration=args.silence_duration,
+        min_utterance_ms=args.min_utterance,
     )
 
     # Step 5: 建立 Orchestrator 協調器實例

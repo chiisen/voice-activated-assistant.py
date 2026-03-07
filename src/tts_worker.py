@@ -301,14 +301,9 @@ class TTSWorker:
         Worker 執行緒主迴圈
 
         說明：
-            在獨立執行緒中運行：
-            1. 從輸入佇列取出朗讀任務
-            2. 若收到 None，則結束迴圈
-            3. 呼叫 _speak() 進行朗讀
-            4. 標記任務完成
-
-        參數：
-            無
+            1. 從任務佇列取出朗讀任務
+            2. 將任務拆分為多個子句 (Streaming 基礎)
+            3. 依序產生並播放，實現「邊生邊播」的效果
         """
         print("[TTS] Worker 執行緒已啟動", flush=True)
         while self._is_running:
@@ -320,86 +315,114 @@ class TTSWorker:
                 if job is None:
                     break
 
-                # 執行朗讀
-                self._speak(job)
+                # 執行朗讀 (內部已支援串流化處理)
+                self._speak_streaming(job)
 
                 # 標記任務完成
                 self._job_queue.task_done()
 
             except queue.Empty:
-                # 佇列空閒，繼續迴圈
                 continue
             except Exception as e:
-                # 例外處理
-                print(f"[TTS] Error: {e}")
+                print(f"[TTS] Worker Error: {e}")
 
-    def _speak(self, job: TTSJob):
-        print(f"[TTS] 開始處理朗讀任務: 「{job.text}」", flush=True)
-        # 設定說話狀態
+    def _split_into_sentences(self, text: str) -> list[str]:
+        """將長句拆分為短句以支援串流播放"""
+        # 使用正則表達式根據標點符號拆分，並保留標點
+        import re
+        # 匹配非標點內容 + 後隨的標點
+        pattern = r'([^，。！？,;.!?]+[，。！？,;.!?]*)'
+        sentences = re.findall(pattern, text)
+        
+        # 若沒匹配到(可能沒標點)，直接回傳原句
+        if not sentences:
+            return [text]
+        
+        # 過濾空字串並去除首尾空白
+        return [s.strip() for s in sentences if s.strip()]
+
+    def _speak_streaming(self, job: TTSJob):
+        """串流化朗讀實作：拆分 -> 生一段 -> 播一段"""
+        print(f"[TTS] 開始處理任務: 「{job.text}」", flush=True)
         self._is_speaking = True
         self._speaking_event.set()
-
-        # 記錄開始時間
         start_time = time.time()
 
-        # 執行文字朗讀
-        try:
+        # 1. 拆分句子
+        sentences = self._split_into_sentences(job.text)
+        print(f"[TTS] 偵測到 {len(sentences)} 個語句段落，進入串流模式...", flush=True)
+
+        # 2. 建立播放佇列與播放執行緒 (本任務專用)
+        playback_queue = queue.Queue()
+        playback_stop_event = threading.Event()
+
+        def playback_worker():
             import sounddevice as sd
+            while not playback_stop_event.is_set() or not playback_queue.empty():
+                try:
+                    # 從佇列取得音訊片段
+                    chunk = playback_queue.get(timeout=0.1)
+                    if chunk is None: break
+                    
+                    audio_data, sr = chunk
+                    # 播放
+                    sd.play(audio_data, sr, device=self.device)
+                    sd.wait()
+                    playback_queue.task_done()
+                except queue.Empty:
+                    continue
+                except Exception as e:
+                    print(f"[TTS] Playback Thread Error: {e}")
+                    break
+
+        playback_thread = threading.Thread(target=playback_worker, daemon=True)
+        playback_thread.start()
+
+        # 3. 逐句生成並餵入播放佇列
+        try:
+            import torch
             import numpy as np
 
-            # 使用 Qwen3-TTS 生成音訊 (CustomVoice 實作)
-            # 說明：對於 CustomVoice 模型使用 generate_custom_voice
-            #       回傳結果為 (List[np.ndarray], sr)
-            if hasattr(self._engine, 'generate_custom_voice'):
-                # 決定要使用的說話者
-                speaker = job.voice or self.default_voice
-                print(f"[TTS] 使用語音人聲: {repr(speaker)}", flush=True)
-                
-                # AI 生成階段計時 - 進入推論模式優化效能
-                with torch.inference_mode():
-                    if torch.cuda.is_available():
-                        torch.cuda.synchronize()
-                    gen_start = time.time()
+            for i, sent in enumerate(sentences):
+                # 檢查是否被外部打斷 (例如 Orchestrator 清除了事件)
+                if not self._speaking_event.is_set():
+                    print("[TTS] 偵測到打斷，停止後續段落生成", flush=True)
+                    break
+
+                print(f"[TTS] 串流生成中 ({i+1}/{len(sentences)}): {sent}", flush=True)
+
+                if hasattr(self._engine, 'generate_custom_voice'):
+                    speaker = job.voice or self.default_voice
+                    with torch.inference_mode():
+                        if torch.cuda.is_available():
+                            torch.cuda.synchronize()
+                        
+                        wavs, sr = self._engine.generate_custom_voice(
+                            sent, 
+                            speaker=speaker,
+                            do_sample=False,
+                            max_new_tokens=512
+                        )
                     
-                    wavs, sr = self._engine.generate_custom_voice(
-                        job.text, 
-                        speaker=speaker,
-                        do_sample=False, # 禁用隨機採樣以加速
-                        max_new_tokens=512 # 語音任務不需過長 tokens
-                    )
-                    
-                    if torch.cuda.is_available():
-                        torch.cuda.synchronize()
-                    gen_end = time.time()
-                
-                audio_data = wavs[0] # 取得第一段生成的音訊
-                audio_duration_s = len(audio_data) / sr
-                
-                # 輸出音訊統計資訊以便除錯
-                max_val = np.abs(audio_data).max()
-                print(f"[TTS] AI 生成完成 | 耗時: {int((gen_end - gen_start) * 1000)}ms | 音訊長度: {audio_duration_s:.2f}s | 最大振幅: {max_val:.4f}", flush=True)
-                
-                # 播放階段
-                sd.play(audio_data, sr, device=self.device)
-                sd.wait()
-            else:
-                self._speak_fallback(job)
+                    # 將結果放入播放佇列
+                    playback_queue.put((wavs[0], sr))
+                else:
+                    # 備援模式不支援細粒度串流，一次跑完
+                    self._speak_fallback(TTSJob(rule_id=job.rule_id, text=sent))
 
         except Exception as e:
-            print(f"[TTS] Qwen3-TTS 播放錯誤: {e}, 嘗試備援...")
-            self._speak_fallback(job)
+            print(f"[TTS] Streaming Generation Error: {e}")
+        finally:
+            # 結束播放執行緒
+            playback_queue.put(None)
+            playback_stop_event.set()
+            playback_thread.join(timeout=2.0)
 
-        # 計算耗時
+        # 4. 結束處理
         duration_ms = int((time.time() - start_time) * 1000)
-        
-        # 建立結果物件
         result = TTSResult(job_id=job.rule_id, success=True, duration_ms=duration_ms)
-
-        # 清除說話狀態
         self._is_speaking = False
         self._speaking_event.clear()
-
-        # 呼叫完成回調
         if self.on_complete:
             self.on_complete(result)
 
