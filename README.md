@@ -128,6 +128,38 @@ python src/main.py --mock-mode --test "天氣"
 
 ---
 
+## ⚡ 推論引擎與加速指南 (進階)
+
+我們建議進階使用者或擁有高速 GPU 的開發者安裝 **vLLM** 引擎。這能將語音推論的速度推向極致，解決預設 `transformers` 框架中的迴圈效能瓶頸。
+
+### 為什麼不使用 `.bin` 格式 (CTranslate2 / faster-whisper) 加速？
+
+在早期的計畫或是 Whisper 的使用生態中，通常會透過將模型轉換成 `.bin` 格式，交由 `faster-whisper` (底層依賴於 **CTranslate2 (CT2)**) 來進行極速推理。
+* **CTranslate2 (CT2)**：這是一個專為標準 Transformer 架構設計的高效 C++ 推理引擎，特色是就算使用 CPU 也能跑得飛快。
+* **無法使用的原因**：我們專案目前採用的是最新世代的 **Qwen3-ASR** 模型。這是一個「具備語音理解能力的大型語言模型變體 (Multimodal LLM)」，其架構不僅龐大，且包含許多特殊的結構 (需要 `trust_remote_code=True` 才能載入)。由於其**不是傳統的 Transformer 結構**，因此 **CTranslate2 目前尚未支援 Qwen3-ASR**。這就是為什麼我們無法像處理標準 Whisper 模型那樣，簡單把它轉成 `.bin` 格式。
+
+### 所以我們如何讓 Qwen3-ASR 變快？(為什麼選擇 vLLM？)
+
+既然無法走 `.bin` / CT2 這條路，Qwen 官方對於 Qwen3 系列強烈建議使用的唯一終極加速方案就是：**vLLM**。
+1.  **🚀 推理速度提升 3~5 倍**：vLLM 是專為大型語言模型 (LLM) 推理設計的高效能 C++ 引擎。
+2.  **🌌 PagedAttention 技術**：有效管理 KV Cache 記憶體，降低 OOM 風險。
+3.  **🚄 官方最佳支援**：Qwen 官方對於 Qwen3-ASR 系列強烈推薦使用 vLLM backend。
+4.  **🌊 真正的非同步串流**：vLLM 引擎原生支持極低延遲的串流生成，這是 `Qwen3-TTS` 等模型達到「即時反應」的關鍵。
+
+### 安裝 vLLM
+
+請在虛擬環境 (如 `.venv`) 中執行以下安裝指令：
+
+```powershell
+uv pip install vllm
+# 或使用標準 pip
+# pip install vllm
+```
+
+*(註：Windows 上安裝 vLLM 可能需要準備 C++ 建置工具與 CUDA Toolkit，若不熟悉編譯流程，可繼續使用免編譯的預設 Transformers 引擎。)*
+
+---
+
 ## 🔧 常見問題
 
 ### Q1: WSL 環境無法使用麥克風
