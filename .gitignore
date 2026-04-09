@@ -208,4 +208,5 @@ __marimo__/
 models/
 
 graphify-out/cache/
+.codex/hooks.json
 
